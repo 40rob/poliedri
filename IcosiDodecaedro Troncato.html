@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cubottaedro Troncato</title>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#sliderContainer {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #777;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* pulsante e slider a sinistra */
+  //padding: 0.5vh;
+  border-bottom: 2px solid white;
+  width: 100vw;
+  z-index: 1000;
+}
+
+/* Pulsanti circolari */
+#modeButton, #centerButton, #sphereButton, #formButton {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  user-select: none;                 
+  -webkit-tap-highlight-color: transparent;
+}
+
+#sphereButton img, #centerButton img, #formButton img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#centerButton:active { background: yellow; }
+
+/* Colori per Button */
+.grey { background: #aaa; }
+.yellow { background: #ffea00; }
+.rosso { background: rgb(230, 75, 75); }
+.blu   { background: rgb(100, 112, 235); } 
+
+/* Slider */
+#sliderContainer input[type="range"] {
+  flex: 1;
+  margin-left: 1vh;
+  height: 2px;
+  background: #eee;
+  border-radius: 0.5vh;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Thumb */
+#sliderContainer input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 4vh;
+  height: 4vh;
+  background: #aaa;
+  border-radius: 50%;
+  cursor: pointer;
+}
+#sliderContainer input[type="range"]::-moz-range-thumb {
+  width: 4vh;
+  height: 4vh;
+  background: #0078d7;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* --- STILI PER IL formBox E L'IMMAGINE --- */
+/* Il box principale (posizionato via JS) */
+#formBox {
+  position: absolute;     /* già impostato via JS, ma qui per fallback */
+  top: 7.5vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: none;          /* nascosto di default; JS lo mostra */
+  max-width: 90vw;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+/* Immagine dentro formBox: default (PC) */
+#formBox img {
+  width: auto;    /* <- qui: PC = 60vw */
+  max-width: 900px; /* opzionale: non crescerà oltre */
+  height: 69.47vh;
+  display: block;
+}
+
+/* Smartphone / schermi stretti */
+@media (max-width: 768px) {
+  #formBox img {
+    width: 90vw;  /* <- qui: mobile = 85vw */
+    height: auto;
+    max-width: none;
+  }
+}
+</style>
+</head>
+
+<div id="sliderContainer">
+  <div id="sphereButton" class="grey"><img src="immagini/sfera.gif"></div>
+  <div id="formButton" class="grey"><img src="immagini/formule.gif"></div> 
+  <div id="modeButton" class="rosso"></div>
+  <input type="range" id="extrudeSlider" min="-3.0510" max="0" step="0.0001" value="0">
+  <div id="centerButton" class="grey"><img src="immagini/centra.gif"></div> 
+  <!-- Pulsante circolare a destra -->
+</div>
+
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+let scene, camera, renderer;
+let polyhedronGroup;
+let isDragging = false, prevX = 0, prevY = 0;
+const axisX = new THREE.Vector3(1,0,0);
+const axisY = new THREE.Vector3(0,1,0);
+const axisZ = new THREE.Vector3(0,0,1);
+
+/* === creazione del formBox === */
+const formBox = document.createElement("div");
+formBox.id = "formBox";
+formBox.innerHTML = `
+  <div>
+    <img src="immagini/icosidodecaedro_troncato.png">
+  </div>
+`;
+document.body.appendChild(formBox);
+
+init();
+animate();
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x64AFFF);
+
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(0,0,40);
+
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    polyhedronGroup = new THREE.Group();
+    scene.add(polyhedronGroup);
+
+    const vertices = [
+        [ -0.21114561800016818 , 1.5777087639996634 , 0.21114561800016834 ],
+[ 0.21114561800016823 , 1.5777087639996634 , 0.21114561800016834 ],
+[ 0.42229123600033647 , 1.4472135954999579 , 0.5527864045000421 ],
+[ 0.2111456180001682 , 1.3167184270002523 , 0.8944271909999159 ],
+[ -0.42229123600033636 , 1.4472135954999579 , 0.5527864045000421 ],
+[ -0.2111456180001682 , 1.3167184270002523 , 0.8944271909999159 ],
+[ -0.21114561800016818 , 1.5777087639996634 , -0.21114561800016834 ],
+[ 0.21114561800016823 , 1.5777087639996634 , -0.21114561800016834 ],
+[ 0.2111456180001682 , 1.3167184270002523 , -0.8944271909999159 ],
+[ 0.42229123600033647 , 1.4472135954999579 , -0.5527864045000421 ],
+[ -0.2111456180001682 , 1.3167184270002523 , -0.8944271909999159 ],
+[ -0.42229123600033636 , 1.4472135954999579 , -0.5527864045000421 ],
+[ -0.42229123600033647 , -1.4472135954999579 , 0.5527864045000421 ],
+[ -0.2111456180001682 , -1.3167184270002523 , 0.8944271909999159 ],
+[ -0.21114561800016823 , -1.5777087639996634 , 0.21114561800016834 ],
+[ 0.21114561800016818 , -1.5777087639996634 , 0.21114561800016834 ],
+[ 0.42229123600033636 , -1.4472135954999579 , 0.5527864045000421 ],
+[ 0.2111456180001682 , -1.3167184270002523 , 0.8944271909999159 ],
+[ -0.2111456180001682 , -1.3167184270002523 , -0.8944271909999159 ],
+[ -0.42229123600033647 , -1.4472135954999579 , -0.5527864045000421 ],
+[ -0.21114561800016823 , -1.5777087639996634 , -0.21114561800016834 ],
+[ 0.21114561800016818 , -1.5777087639996634 , -0.21114561800016834 ],
+[ 0.2111456180001682 , -1.3167184270002523 , -0.8944271909999159 ],
+[ 0.42229123600033636 , -1.4472135954999579 , -0.5527864045000421 ],
+[ 0.7639320225002102 , 1.2360679774997896 , 0.6832815729997477 ],
+[ 0.552786404500042 , 1.105572809000084 , 1.0249223594996213 ],
+[ 1.2360679774997896 , 0.6832815729997477 , 0.7639320225002102 ],
+[ 1.105572809000084 , 1.0249223594996213 , 0.552786404500042 ],
+[ 1.0249223594996213 , 0.552786404500042 , 1.105572809000084 ],
+[ 0.6832815729997477 , 0.7639320225002102 , 1.2360679774997896 ],
+[ 0.21114561800016834 , -0.21114561800016818 , 1.5777087639996634 ],
+[ 0.21114561800016834 , 0.21114561800016818 , 1.5777087639996634 ],
+[ 0.8944271909999159 , 0.2111456180001682 , 1.3167184270002523 ],
+[ 0.5527864045000421 , 0.42229123600033636 , 1.4472135954999579 ],
+[ 0.8944271909999159 , -0.2111456180001682 , 1.3167184270002523 ],
+[ 0.5527864045000421 , -0.42229123600033636 , 1.4472135954999579 ],
+[ 1.0249223594996213 , -0.552786404500042 , 1.105572809000084 ],
+[ 0.6832815729997477 , -0.7639320225002102 , 1.2360679774997896 ],
+[ 0.7639320225002102 , -1.2360679774997896 , 0.6832815729997477 ],
+[ 0.552786404500042 , -1.105572809000084 , 1.0249223594996213 ],
+[ 1.2360679774997896 , -0.6832815729997477 , 0.7639320225002102 ],
+[ 1.105572809000084 , -1.0249223594996213 , 0.552786404500042 ],
+[ -0.7639320225002102 , 1.2360679774997896 , 0.6832815729997477 ],
+[ -0.552786404500042 , 1.105572809000084 , 1.0249223594996213 ],
+[ -1.2360679774997896 , 0.6832815729997477 , 0.7639320225002102 ],
+[ -1.105572809000084 , 1.0249223594996213 , 0.552786404500042 ],
+[ -1.0249223594996213 , 0.552786404500042 , 1.105572809000084 ],
+[ -0.6832815729997477 , 0.7639320225002102 , 1.2360679774997896 ],
+[ -1.0249223594996213 , -0.552786404500042 , 1.105572809000084 ],
+[ -0.6832815729997477 , -0.7639320225002102 , 1.2360679774997896 ],
+[ -1.2360679774997896 , -0.6832815729997477 , 0.7639320225002102 ],
+[ -1.105572809000084 , -1.0249223594996213 , 0.552786404500042 ],
+[ -0.7639320225002102 , -1.2360679774997896 , 0.6832815729997477 ],
+[ -0.552786404500042 , -1.105572809000084 , 1.0249223594996213 ],
+[ -0.8944271909999159 , -0.2111456180001682 , 1.3167184270002523 ],
+[ -0.5527864045000421 , -0.42229123600033636 , 1.4472135954999579 ],
+[ -0.21114561800016834 , -0.21114561800016818 , 1.5777087639996634 ],
+[ -0.21114561800016834 , 0.21114561800016818 , 1.5777087639996634 ],
+[ -0.8944271909999159 , 0.2111456180001682 , 1.3167184270002523 ],
+[ -0.5527864045000421 , 0.42229123600033636 , 1.4472135954999579 ],
+[ 0.552786404500042 , 1.105572809000084 , -1.0249223594996213 ],
+[ 0.7639320225002102 , 1.2360679774997896 , -0.6832815729997477 ],
+[ 1.2360679774997896 , 0.6832815729997477 , -0.7639320225002102 ],
+[ 1.105572809000084 , 1.0249223594996213 , -0.552786404500042 ],
+[ 0.6832815729997477 , 0.7639320225002102 , -1.2360679774997896 ],
+[ 1.0249223594996213 , 0.552786404500042 , -1.105572809000084 ],
+[ 0.552786404500042 , -1.105572809000084 , -1.0249223594996213 ],
+[ 0.7639320225002102 , -1.2360679774997896 , -0.6832815729997477 ],
+[ 1.2360679774997896 , -0.6832815729997477 , -0.7639320225002102 ],
+[ 1.105572809000084 , -1.0249223594996213 , -0.552786404500042 ],
+[ 0.6832815729997477 , -0.7639320225002102 , -1.2360679774997896 ],
+[ 1.0249223594996213 , -0.552786404500042 , -1.105572809000084 ],
+[ 1.4472135954999579 , 0.5527864045000421 , -0.42229123600033647 ],
+[ 1.3167184270002525 , 0.8944271909999159 , -0.2111456180001682 ],
+[ 1.4472135954999579 , 0.5527864045000421 , 0.42229123600033636 ],
+[ 1.3167184270002525 , 0.8944271909999159 , 0.2111456180001682 ],
+[ 1.5777087639996634 , 0.21114561800016834 , -0.21114561800016823 ],
+[ 1.5777087639996634 , 0.21114561800016834 , 0.21114561800016818 ],
+[ 1.4472135954999579 , -0.5527864045000421 , -0.42229123600033647 ],
+[ 1.3167184270002523 , -0.8944271909999159 , -0.2111456180001682 ],
+[ 1.5777087639996634 , -0.21114561800016834 , -0.21114561800016823 ],
+[ 1.5777087639996634 , -0.21114561800016834 , 0.21114561800016818 ],
+[ 1.4472135954999579 , -0.5527864045000421 , 0.42229123600033636 ],
+[ 1.3167184270002523 , -0.8944271909999159 , 0.2111456180001682 ],
+[ 0.21114561800016834 , -0.21114561800016818 , -1.5777087639996634 ],
+[ 0.21114561800016834 , 0.21114561800016818 , -1.5777087639996634 ],
+[ 0.5527864045000421 , 0.42229123600033636 , -1.4472135954999579 ],
+[ 0.8944271909999159 , 0.2111456180001682 , -1.3167184270002525 ],
+[ 0.5527864045000421 , -0.42229123600033636 , -1.4472135954999579 ],
+[ 0.8944271909999159 , -0.2111456180001682 , -1.3167184270002525 ],
+[ -1.2360679774997896 , 0.6832815729997477 , -0.7639320225002102 ],
+[ -1.105572809000084 , 1.0249223594996213 , -0.552786404500042 ],
+[ -1.0249223594996213 , 0.552786404500042 , -1.105572809000084 ],
+[ -0.6832815729997477 , 0.7639320225002102 , -1.2360679774997896 ],
+[ -0.552786404500042 , 1.105572809000084 , -1.0249223594996213 ],
+[ -0.7639320225002102 , 1.2360679774997896 , -0.6832815729997477 ],
+[ -0.552786404500042 , -1.105572809000084 , -1.0249223594996213 ],
+[ -0.7639320225002102 , -1.2360679774997896 , -0.6832815729997477 ],
+[ -1.2360679774997896 , -0.6832815729997477 , -0.7639320225002102 ],
+[ -1.105572809000084 , -1.0249223594996213 , -0.552786404500042 ],
+[ -1.0249223594996213 , -0.552786404500042 , -1.105572809000084 ],
+[ -0.6832815729997477 , -0.7639320225002102 , -1.2360679774997896 ],
+[ -1.5777087639996634 , 0.21114561800016834 , -0.21114561800016818 ],
+[ -1.5777087639996634 , 0.21114561800016834 , 0.21114561800016818 ],
+[ -1.4472135954999579 , 0.5527864045000421 , 0.42229123600033636 ],
+[ -1.3167184270002523 , 0.8944271909999159 , 0.2111456180001682 ],
+[ -1.4472135954999579 , 0.5527864045000421 , -0.42229123600033636 ],
+[ -1.3167184270002523 , 0.8944271909999159 , -0.2111456180001682 ],
+[ -1.4472135954999579 , -0.5527864045000421 , -0.42229123600033636 ],
+[ -1.3167184270002525 , -0.8944271909999159 , -0.2111456180001682 ],
+[ -1.5777087639996634 , -0.21114561800016834 , -0.21114561800016818 ],
+[ -1.5777087639996634 , -0.21114561800016834 , 0.21114561800016818 ],
+[ -1.4472135954999579 , -0.5527864045000421 , 0.42229123600033636 ],
+[ -1.3167184270002525 , -0.8944271909999159 , 0.2111456180001682 ],
+[ -0.8944271909999159 , -0.2111456180001682 , -1.3167184270002523 ],
+[ -0.5527864045000421 , -0.42229123600033636 , -1.4472135954999579 ],
+[ -0.21114561800016834 , -0.21114561800016818 , -1.5777087639996634 ],
+[ -0.21114561800016834 , 0.21114561800016818 , -1.5777087639996634 ],
+[ -0.8944271909999159 , 0.2111456180001682 , -1.3167184270002523 ],
+[ -0.5527864045000421 , 0.42229123600033636 , -1.4472135954999579 ]
+    ];
+
+    const faces = [[110, 102, 106, 90, 92, 118, 114, 100, 98, 108], [88, 70, 66, 22, 18, 96, 101, 115, 116, 84], [119, 93, 94, 10, 8, 60, 64, 86, 85, 117], [54, 58, 46, 44, 104, 103, 111, 112, 50, 48], [99, 97, 19, 20, 14, 12, 52, 51, 113, 109], [45, 42, 4, 0, 6, 11, 95, 91, 107, 105], [71, 89, 87, 65, 62, 72, 76, 80, 78, 68], [40, 82, 81, 77, 74, 26, 28, 32, 34, 36], [41, 38, 16, 15, 21, 23, 67, 69, 79, 83], [63, 61, 9, 7, 1, 2, 24, 27, 75, 73], [55, 49, 53, 13, 17, 39, 37, 35, 30, 56], [33, 29, 25, 3, 5, 43, 47, 59, 57, 31], 
+
+[0, 1, 7, 6], [25, 24, 2, 3], [42, 43, 5, 4], [61, 60, 8, 9], [94, 95, 11, 10], [53, 52, 12, 13], [20, 21, 15, 14], [38, 39, 17, 16], [97, 96, 18, 19], [66, 67, 23, 22], [26, 74, 75, 27], [28, 29, 33, 32], [30, 31, 57, 56], [37, 36, 34, 35], [40, 41, 83, 82], [44, 45, 105, 104], [58, 59, 47, 46], [48, 49, 55, 54], [50, 112, 113, 51], [63, 73, 72, 62], [87, 86, 64, 65], [78, 79, 69, 68], [70, 88, 89, 71], [76, 77, 81, 80], [116, 117, 85, 84], [106, 107, 91, 90], [92, 93, 119, 118], [109, 108, 98, 99], [114, 115, 101, 100], [102, 110, 111, 103], 
+
+[1, 0, 4, 5, 3, 2], [8, 10, 11, 6, 7, 9], [16, 17, 13, 12, 14, 15], [20, 19, 18, 22, 23, 21], [26, 27, 24, 25, 29, 28], [33, 31, 30, 35, 34, 32], [41, 40, 36, 37, 39, 38], [46, 47, 43, 42, 45, 44], [52, 53, 49, 48, 50, 51], [59, 58, 54, 55, 56, 57], [65, 64, 60, 61, 63, 62], [70, 71, 68, 69, 67, 66], [77, 76, 72, 73, 75, 74], [82, 83, 79, 78, 80, 81], [89, 88, 84, 85, 86, 87], [93, 92, 90, 91, 95, 94], [99, 98, 100, 101, 96, 97], [107, 106, 102, 103, 104, 105], [111, 110, 108, 109, 113, 112], [117, 116, 115, 114, 118, 119]
+        
+    ];
+
+    const faceColors = [
+[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],[ 1.0 , 0.1 , 0.1 ],
+
+[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],[0.7, 0.23, 0.7],
+
+[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1],[0.2, 0.25, 1]
+        
+    ];
+
+    // Scala i vertici in modo che il raggio massimo sia 10
+    let maxRadius = 0;
+    vertices.forEach(v => { const r = Math.sqrt(v[0]**2+v[1]**2+v[2]**2); if(r>maxRadius) maxRadius=r; });
+    const scaleFactor = 10/maxRadius;
+    let scaledVertices = vertices.map(v => [v[0]*scaleFactor, v[1]*scaleFactor, v[2]*scaleFactor]);
+
+    const originalVertices = scaledVertices.map(v => [...v]);
+
+    const meshes = [];
+    const lines = [];
+
+    faces.forEach((face, fi)=>{
+        const geom = new THREE.BufferGeometry();
+        const indices = [];
+        for(let i=1;i<face.length-1;i++) indices.push(face[0],face[i],face[i+1]);
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(scaledVertices.flat(),3));
+        geom.setIndex(indices);
+        geom.computeVertexNormals();
+
+        const color = new THREE.Color(...faceColors[fi]);
+        const mat = new THREE.MeshStandardMaterial({
+        color:color, 
+        side:THREE.DoubleSide,
+        metalness: 0,       //non metallico
+        roughness: 0.5
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        polyhedronGroup.add(mesh);
+        meshes.push(mesh);
+
+        const edgeGeom = new THREE.EdgesGeometry(geom);
+        const line = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({color:0x000000}));
+        polyhedronGroup.add(line);
+        lines.push(line);
+    });
+
+//Sfera Circoscritta
+    // Crea la geometria della sfera trasparente con raggio 10
+    const raggioSphere = 10 * 1.01;
+    const sphereGeometry = new THREE.SphereGeometry(raggioSphere, 64, 64); // raggio 10
+    const sphereMaterial = new THREE.MeshStandardMaterial({
+    color:  new THREE.Color(1, 1, 1),   // giallo acceso
+    transparent: true, 
+    opacity: 0.3,      // trasparenza
+    side: THREE.DoubleSide, // visibile dall'interno e dall'esterno
+    metalness: 1,       // non metallico
+    roughness: 0.55  
+    });
+
+    const transparentSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    transparentSphere.visible = false;
+    scene.add(transparentSphere);
+
+    // luci
+    const light = new THREE.DirectionalLight(0xffffff,1);
+    light.position.set(50,50,50);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xbbbbbb));
+
+    renderer.domElement.addEventListener('mousedown', e=>{ isDragging=true; prevX=e.clientX; prevY=e.clientY; });
+    renderer.domElement.addEventListener('mouseup', ()=>{ isDragging=false; });
+    renderer.domElement.addEventListener('mousemove', onMove);
+    renderer.domElement.addEventListener('touchstart', e=>{ isDragging=true; prevX=e.touches[0].clientX; prevY=e.touches[0].clientY; });
+    renderer.domElement.addEventListener('touchend', ()=>{ isDragging=false; });
+    renderer.domElement.addEventListener('touchmove', e=>{
+        if(!isDragging) return;
+        const touch=e.touches[0];
+        onMove({ clientX: touch.clientX, clientY: touch.clientY });
+        prevX=touch.clientX; prevY=touch.clientY;
+        e.preventDefault();
+    },{passive:false});
+
+    window.addEventListener('resize', ()=>{
+        camera.aspect=window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth,window.innerHeight);
+    });
+
+    const slider = document.getElementById('extrudeSlider');
+    slider.addEventListener('input', ()=> {
+
+    applyExtrusion(parseFloat(slider.value),A,B);
+
+    const mesh = meshes[0];;
+    const pos = mesh.geometry.attributes.position;
+    const x = pos.getX(0);
+    const y = pos.getY(0);
+    const z = pos.getZ(0);
+    const R = Math.sqrt(x*x + y*y + z*z);
+
+    //aggiorna raggio sfera
+    const scaleFactor =  (R / raggioSphere) * 1.01;
+    transparentSphere.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+
+    //if (centerActive) {
+	//aggiorna posizione camera
+	//camera.position.z = 4 * R;
+	//}
+    });
+
+
+const sphereButton = document.getElementById('sphereButton');
+
+// stato iniziale
+let sphereActive = false;
+sphereButton.classList.add('grey1');
+
+sphereButton.addEventListener('click', () => {
+  if(!sphereActive){
+	sphereButton.classList.remove('grey');
+    	sphereButton.classList.add('yellow');
+	transparentSphere.visible = true;    
+        sphereActive = true;
+  } else {
+        sphereButton.classList.remove('yellow');
+    	sphereButton.classList.add('grey');  
+	transparentSphere.visible = false;
+        sphereActive = false;
+  }
+
+  console.log("sphereButton cliccato, stato:", sphereActive);
+});
+
+
+const centerButton = document.getElementById('centerButton');
+
+centerButton.addEventListener('click', () => {
+      	const mesh = meshes[0];;
+    	const pos = mesh.geometry.attributes.position;
+    	const x = pos.getX(0);
+    	const y = pos.getY(0);
+    	const z = pos.getZ(0);
+    	const R = Math.sqrt(x*x + y*y + z*z);
+
+        //aggiorna posizione camera
+	camera.position.z = 4 * R;
+
+
+  //console.log("centerButton cliccato, stato:", centerActive);
+});
+
+
+const formButton = document.getElementById('formButton');
+let formActive = false;
+
+formButton.addEventListener('click', () => {
+    formActive = !formActive;
+    if(formActive){
+        formButton.classList.remove('grey');
+        formButton.classList.add('yellow');
+        formBox.style.display = "block";
+    } else {
+        formButton.classList.remove('yellow');
+        formButton.classList.add('grey');
+        formBox.style.display = "none";
+    }
+});
+
+
+const button = document.getElementById('modeButton');
+
+// stato iniziale
+let mode = 'rosso';
+let A = 0, B = 11;
+slider.min = -2.5012;
+slider.value = 0;
+
+// assegna la classe iniziale
+button.classList.add(mode);
+
+button.addEventListener('click', ()=>{
+    if(mode === 'rosso'){
+        mode = 'blu';
+        button.classList.remove('rosso');
+        button.classList.add('blu');
+        slider.min = -3.6852;
+        A = 41; B = 61;
+        camera.position.z = 40;
+	transparentSphere.scale.set(1, 1, 1);
+    } else {
+        mode = 'rosso';
+        button.classList.remove('blu');
+        button.classList.add('rosso');
+        slider.min = -2.5012;
+        A = 0; B = 11;
+        camera.position.z = 40;
+	transparentSphere.scale.set(1, 1, 1);
+    }
+        
+
+
+    slider.value = 0;
+
+    // ripristina vertici e mesh come prima
+    for(let i=0; i<scaledVertices.length; i++){
+        scaledVertices[i][0] = originalVertices[i][0];
+        scaledVertices[i][1] = originalVertices[i][1];
+        scaledVertices[i][2] = originalVertices[i][2];
+    }
+
+    meshes.forEach((mesh, fi)=>{
+        mesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(scaledVertices.flat(),3));
+        mesh.geometry.computeVertexNormals();
+        const line = lines[fi];
+        line.geometry.dispose();
+        line.geometry = new THREE.EdgesGeometry(mesh.geometry);
+    });
+});
+
+
+
+function applyExtrusion(d, A, B) {
+    	for (let fi = A; fi <= B; fi++) {
+            const face = faces[fi];
+            let centroid = new THREE.Vector3();
+            face.forEach(vid=>centroid.add(new THREE.Vector3(...originalVertices[vid])));
+            centroid.multiplyScalar(1/face.length);
+            const dir = centroid.clone().normalize();
+            face.forEach(vid=>{
+                scaledVertices[vid][0]=originalVertices[vid][0]+dir.x*d;
+                scaledVertices[vid][1]=originalVertices[vid][1]+dir.y*d;
+                scaledVertices[vid][2]=originalVertices[vid][2]+dir.z*d;
+            });
+        }
+        meshes.forEach((mesh, fi)=>{
+            mesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(scaledVertices.flat(),3));
+            mesh.geometry.computeVertexNormals();
+
+            // aggiorna contorni
+            const line = lines[fi];
+            line.geometry.dispose();
+            line.geometry = new THREE.EdgesGeometry(mesh.geometry);
+        });
+    }
+} //fine Init()
+
+function ScreenRadius() {
+    // R: raggio della sfera
+    // D: distanza della camera dal centro della sfera
+    // camera: THREE.PerspectiveCamera
+    // canvasHeight: altezza del canvas in pixel
+    const canvasHeight = renderer.domElement.height
+    const mesh = polyhedronGroup.children[0];
+    const pos = mesh.geometry.attributes.position;
+    const x = pos.getX(0);
+    const y = pos.getY(0);
+    const z = pos.getZ(0);
+    const R = Math.sqrt(x*x + y*y + z*z);
+    const D = camera.position.z 
+    const fovRad = 60 * (Math.PI / 180);
+    const rPixel = (R / Math.sqrt(D*D - R*R)) * (canvasHeight / (2 * Math.tan    (fovRad/2)));
+    return rPixel;
+}
+
+function onMove(e){
+    if(!isDragging) return;
+
+    const centerX = renderer.domElement.clientWidth / 2;
+    const centerY = renderer.domElement.clientHeight / 2;
+
+    const v_prev = new THREE.Vector2(prevX - centerX, prevY - centerY);
+    const v_curr = new THREE.Vector2(e.clientX - centerX, e.clientY - centerY);
+
+    const dist = v_curr.length();
+    const maxDist = ScreenRadius(); // soglia come prima
+
+    if(dist <= maxDist){
+        // rotazioni standard X/Y
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+        const qx = new THREE.Quaternion().setFromAxisAngle(axisX, dy * 0.01);
+        const qy = new THREE.Quaternion().setFromAxisAngle(axisY, dx * 0.01);
+        polyhedronGroup.quaternion.premultiply(qy);
+        polyhedronGroup.quaternion.premultiply(qx);
+    } else {
+        // rotazione Z basata sull'angolo al centro
+        const angle_prev = Math.atan2(v_prev.y, v_prev.x);
+        const angle_curr = Math.atan2(v_curr.y, v_curr.x);
+        const dangle = angle_prev-angle_curr;
+	console.log("dangle (rad):", dangle, "≈ deg:", dangle * 180 / Math.PI);
+        const qz = new THREE.Quaternion().setFromAxisAngle(axisZ, dangle);
+        polyhedronGroup.quaternion.premultiply(qz);
+    }
+
+    prevX = e.clientX;
+    prevY = e.clientY;
+}
+
+function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene,camera);
+}
+
+window.onerror = function(message, source, lineno, colno, error) {
+  const errBox = document.createElement("div");
+  errBox.style.position = "fixed";
+  errBox.style.bottom = "0";
+  errBox.style.left = "0";
+  errBox.style.width = "100%";
+  errBox.style.background = "rgba(0,0,0,0.8)";
+  errBox.style.color = "white";
+  errBox.style.fontSize = "14px";
+  errBox.style.padding = "5px";
+  errBox.style.zIndex = "9999";
+  errBox.textContent = `${message} (riga ${lineno})`;
+  document.body.appendChild(errBox);
+};
+
+</script>
+</body>
+</html> 

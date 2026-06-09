@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cubottaedro Troncato</title>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#sliderContainer {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #777;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* pulsante e slider a sinistra */
+  //padding: 0.5vh;
+  border-bottom: 2px solid white;
+  width: 100vw;
+  z-index: 1000;
+}
+
+/* Pulsanti circolari */
+#centerButton, #sphereButton, #formButton {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  user-select: none;                 
+  -webkit-tap-highlight-color: transparent;
+}
+
+#sphereButton img, #centerButton img, #formButton img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+#centerButton:active { background: yellow; }
+
+/* Colori per Button */
+.grey { background: #aaa; }
+.yellow { background: #ffea00; }
+.rosso { background: rgb(230, 75, 75); }
+.blu   { background: rgb(100, 112, 235); } 
+
+/* Slider */
+#sliderContainer input[type="range"] {
+  flex: 1;
+  margin-left: 1vh;
+  height: 2px;
+  background: #eee;
+  border-radius: 0.5vh;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Thumb */
+#sliderContainer input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 4vh;
+  height: 4vh;
+  background: #aaa;
+  border-radius: 50%;
+  cursor: pointer;
+}
+#sliderContainer input[type="range"]::-moz-range-thumb {
+  width: 4vh;
+  height: 4vh;
+  background: #0078d7;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* --- STILI PER IL formBox E L'IMMAGINE --- */
+/* Il box principale (posizionato via JS) */
+#formBox {
+  position: absolute;     /* già impostato via JS, ma qui per fallback */
+  top: 7.5vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: none;          /* nascosto di default; JS lo mostra */
+  max-width: 90vw;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+/* Immagine dentro formBox: default (PC) */
+#formBox img {
+  width: auto;    /* <- qui: PC = 60vw */
+  max-width: 900px; /* opzionale: non crescerà oltre */
+  height: 66.35vh;
+  display: block;
+}
+
+/* Smartphone / schermi stretti */
+@media (max-width: 768px) {
+  #formBox img {
+    width: 90vw;  /* <- qui: mobile = 85vw */
+    height: auto;
+    max-width: none;
+  }
+}
+</style>
+</head>
+
+<div id="sliderContainer">
+  <div id="sphereButton" class="grey"><img src="immagini/sfera.gif"></div>
+  <div id="formButton" class="grey"><img src="immagini/formule.gif"></div>  
+  <input type="range" id="extrudeSlider" min="0" max="3.9751" step="0.0001" value="0">
+  <div id="centerButton" class="grey"><img src="immagini/centra.gif"></div>
+</div>
+
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+let scene, camera, renderer;
+let polyhedronGroup;
+let isDragging = false, prevX = 0, prevY = 0;
+const axisX = new THREE.Vector3(1,0,0);
+const axisY = new THREE.Vector3(0,1,0);
+const axisZ = new THREE.Vector3(0,0,1);
+
+/* === creazione del formBox === */
+const formBox = document.createElement("div");
+formBox.id = "formBox";
+formBox.innerHTML = `
+  <div>
+    <img src="immagini/cubo_troncato.png">
+  </div>
+`;
+document.body.appendChild(formBox);
+
+init();
+animate();
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x64AFFF);
+
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(0,0,40);
+
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    polyhedronGroup = new THREE.Group();
+    scene.add(polyhedronGroup);
+
+const punte = [[ -1.0 , -1.0 , -1.0 ],
+[ -1.0 , -1.0 , 1.0 ],
+[ -1.0 , 1.0 , -1.0 ],
+[ -1.0 , 1.0 , 1.0 ],
+[ 1.0 , -1.0 , -1.0 ],
+[ 1.0 , -1.0 , 1.0 ],
+[ 1.0 , 1.0 , -1.0 ],
+[ 1.0 , 1.0 , 1.0 ]];
+
+
+    const vertices = [
+[ -1.0 , -1.0 , -0.41421356237309515 ],
+[ -1.0 , -0.41421356237309515 , -1.0 ],
+[ -0.41421356237309515 , -1.0 , -1.0 ],
+[ -1.0 , -1.0 , 0.41421356237309515 ],
+[ -1.0 , -0.41421356237309515 , 1.0 ],
+[ -0.41421356237309515 , -1.0 , 1.0 ],
+[ -1.0 , 0.41421356237309515 , -1.0 ],
+[ -1.0 , 1.0 , -0.41421356237309515 ],
+[ -0.41421356237309515 , 1.0 , -1.0 ],
+[ -1.0 , 0.41421356237309515 , 1.0 ],
+[ -1.0 , 1.0 , 0.41421356237309515 ],
+[ -0.41421356237309515 , 1.0 , 1.0 ],
+[ 0.41421356237309515 , -1.0 , -1.0 ],
+[ 1.0 , -1.0 , -0.41421356237309515 ],
+[ 1.0 , -0.41421356237309515 , -1.0 ],
+[ 0.41421356237309515 , -1.0 , 1.0 ],
+[ 1.0 , -1.0 , 0.41421356237309515 ],
+[ 1.0 , -0.41421356237309515 , 1.0 ],
+[ 0.41421356237309515 , 1.0 , -1.0 ],
+[ 1.0 , 0.41421356237309515 , -1.0 ],
+[ 1.0 , 1.0 , -0.41421356237309515 ],
+[ 0.41421356237309515 , 1.0 , 1.0 ],
+[ 1.0 , 0.41421356237309515 , 1.0 ],
+[ 1.0 , 1.0 , 0.41421356237309515 ]];
+
+    const faces = [[2, 0, 1], [4, 3, 5], [8, 6, 7], [10, 9, 11], [13, 12, 14], [17, 15, 16], [19, 18, 20], [23, 21, 22], [7, 6, 1, 0, 3, 4, 9, 10], [16, 15, 5, 3, 0, 2, 12, 13], [23, 22, 17, 16, 13, 14, 19, 20], [20, 18, 8, 7, 10, 11, 21, 23], [19, 14, 12, 2, 1, 6, 8, 18], [21, 11, 9, 4, 5, 15, 17, 22]];
+
+    const faceColors = [
+	[0.4,0.6,0.9],[0.4,0.6,0.9],[0.4,0.6,0.9],[0.4,0.6,0.9],[0.4,0.6,0.9],[0.4,0.6,0.9],[0.4,0.6,0.9],[0.4,0.6,0.9],
+	[0.7,0.5,0.3],[0.7,0.5,0.3],[0.7,0.5,0.3],[0.7,0.5,0.3],[0.7,0.5,0.3],[0.7,0.5,0.3]
+        
+    ];
+
+    // Scala i vertici in modo che il raggio massimo sia 10
+    let maxRadius = 0;
+    vertices.forEach(v => { const r = Math.sqrt(v[0]**2+v[1]**2+v[2]**2); if(r>maxRadius) maxRadius=r; });
+    const scaleFactor = 10/maxRadius;
+    let scaledVertices = vertices.map(v => [v[0]*scaleFactor, v[1]*scaleFactor, v[2]*scaleFactor]);
+    let scaledPunte = punte.map(p => [p[0]*scaleFactor, p[1]*scaleFactor, p[2]*scaleFactor]);
+
+
+    const originalVertices = scaledVertices.map(v => [...v]);
+    const originalPunte = scaledPunte.map(p => [...p]);
+
+    const meshes = [];
+    const lines = [];
+
+    faces.forEach((face, fi)=>{
+        const geom = new THREE.BufferGeometry();
+        const indices = [];
+        for(let i=1;i<face.length-1;i++) indices.push(face[0],face[i],face[i+1]);
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(scaledVertices.flat(),3));
+        geom.setIndex(indices);
+        geom.computeVertexNormals();
+
+        const color = new THREE.Color(...faceColors[fi]);
+        const mat = new THREE.MeshStandardMaterial({
+        color:color, 
+        side:THREE.DoubleSide,
+        metalness: 0,       //non metallico
+        roughness: 0.5
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        polyhedronGroup.add(mesh);
+        meshes.push(mesh);
+
+        const edgeGeom = new THREE.EdgesGeometry(geom);
+        const line = new THREE.LineSegments(edgeGeom, new THREE.LineBasicMaterial({color:0x000000}));
+        polyhedronGroup.add(line);
+        lines.push(line);
+    });
+
+
+    //Sfera Circoscritta
+    // Crea la geometria della sfera trasparente con raggio 10
+    const raggioSphere = 10 * 1.01;
+    const sphereGeometry = new THREE.SphereGeometry(raggioSphere, 64, 64); // raggio 10
+    const sphereMaterial = new THREE.MeshStandardMaterial({
+    color:  new THREE.Color(1, 1, 1),   // giallo acceso
+    transparent: true, 
+    opacity: 0.3,      // trasparenza
+    side: THREE.DoubleSide, // visibile dall'interno e dall'esterno
+    metalness: 1,       // non metallico
+    roughness: 0.55  
+    });
+
+    const transparentSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    transparentSphere.visible = false;
+    scene.add(transparentSphere);
+
+    // luci
+    const light = new THREE.DirectionalLight(0xffffff,1);
+    light.position.set(50,50,50);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xbbbbbb));
+
+    renderer.domElement.addEventListener('mousedown', e=>{ isDragging=true; prevX=e.clientX; prevY=e.clientY; });
+    renderer.domElement.addEventListener('mouseup', ()=>{ isDragging=false; });
+    renderer.domElement.addEventListener('mousemove', onMove);
+    renderer.domElement.addEventListener('touchstart', e=>{ isDragging=true; prevX=e.touches[0].clientX; prevY=e.touches[0].clientY; });
+    renderer.domElement.addEventListener('touchend', ()=>{ isDragging=false; });
+    renderer.domElement.addEventListener('touchmove', e=>{
+        if(!isDragging) return;
+        const touch=e.touches[0];
+        onMove({ clientX: touch.clientX, clientY: touch.clientY });
+        prevX=touch.clientX; prevY=touch.clientY;
+        e.preventDefault();
+    },{passive:false});
+
+    window.addEventListener('resize', ()=>{
+        camera.aspect=window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth,window.innerHeight);
+    });
+
+    const slider = document.getElementById('extrudeSlider');
+    slider.addEventListener('input', ()=> {
+
+    applyExtrusion(parseFloat(slider.value), 8);
+
+    const mesh = meshes[0];;
+    const pos = mesh.geometry.attributes.position;
+    const x = pos.getX(0);
+    const y = pos.getY(0);
+    const z = pos.getZ(0);
+    const R = Math.sqrt(x*x + y*y + z*z);
+
+    //aggiorna raggio sfera
+    const scaleFactor =  (R / raggioSphere) * 1.01;
+    transparentSphere.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+
+    //if (centerActive) {
+	//aggiorna posizione camera
+	//camera.position.z = 4 * R;
+	//}
+    });
+
+
+const sphereButton = document.getElementById('sphereButton');
+
+// stato iniziale
+let sphereActive = false;
+sphereButton.classList.add('grey1');
+
+sphereButton.addEventListener('click', () => {
+  if(!sphereActive){
+	sphereButton.classList.remove('grey');
+    	sphereButton.classList.add('yellow');
+	transparentSphere.visible = true;    
+        sphereActive = true;
+  } else {
+        sphereButton.classList.remove('yellow');
+    	sphereButton.classList.add('grey');  
+	transparentSphere.visible = false;
+        sphereActive = false;
+  }
+
+  console.log("sphereButton cliccato, stato:", sphereActive);
+});
+
+
+const centerButton = document.getElementById('centerButton');
+
+centerButton.addEventListener('click', () => {
+      	const mesh = meshes[0];;
+    	const pos = mesh.geometry.attributes.position;
+    	const x = pos.getX(0);
+    	const y = pos.getY(0);
+    	const z = pos.getZ(0);
+    	const R = Math.sqrt(x*x + y*y + z*z);
+
+        //aggiorna posizione camera
+	camera.position.z = 4 * R;
+
+
+  //console.log("centerButton cliccato, stato:", centerActive);
+});
+
+const formButton = document.getElementById('formButton');
+let formActive = false;
+
+formButton.addEventListener('click', () => {
+    formActive = !formActive;
+    if(formActive){
+        formButton.classList.remove('grey');
+        formButton.classList.add('yellow');
+        formBox.style.display = "block";
+    } else {
+        formButton.classList.remove('yellow');
+        formButton.classList.add('grey');
+        formBox.style.display = "none";
+    }
+});
+
+
+    function applyExtrusion(d, n){
+           // Per comodità
+    const triFaces = faces.slice(0, n);    // le 4 triangolari
+    const puntaList = punte.map(p => new THREE.Vector3(...p).multiplyScalar(scaleFactor));
+
+    for (let fi = 0; fi < n; fi++) {
+        const face = triFaces[fi];
+        const punta = puntaList[fi];
+
+        face.forEach(vid => {
+            const orig = new THREE.Vector3(...originalVertices[vid]);
+            const dir = punta.clone().sub(orig).normalize();
+            const newPos = orig.clone().add(dir.multiplyScalar(d));
+
+            scaledVertices[vid][0] = newPos.x;
+            scaledVertices[vid][1] = newPos.y;
+            scaledVertices[vid][2] = newPos.z;
+        });
+    }
+
+    // Aggiornamento geometrie
+    meshes.forEach((mesh, fi) => {
+        mesh.geometry.setAttribute(
+            'position',
+            new THREE.Float32BufferAttribute(scaledVertices.flat(), 3)
+        );
+        mesh.geometry.computeVertexNormals();
+
+        const line = lines[fi];
+        line.geometry.dispose();
+        line.geometry = new THREE.EdgesGeometry(mesh.geometry);
+    });
+    }
+} //fine Init()
+
+function ScreenRadius() {
+    // R: raggio della sfera
+    // D: distanza della camera dal centro della sfera
+    // camera: THREE.PerspectiveCamera
+    // canvasHeight: altezza del canvas in pixel
+    const canvasHeight = renderer.domElement.height
+    const mesh = polyhedronGroup.children[0];
+    const pos = mesh.geometry.attributes.position;
+    const x = pos.getX(0);
+    const y = pos.getY(0);
+    const z = pos.getZ(0);
+    const R = Math.sqrt(x*x + y*y + z*z);
+    const D = camera.position.z 
+    const fovRad = 60 * (Math.PI / 180);
+    const rPixel = (R / Math.sqrt(D*D - R*R)) * (canvasHeight / (2 * Math.tan    (fovRad/2)));
+    return rPixel;
+}
+
+function onMove(e){
+    if(!isDragging) return;
+
+    const centerX = renderer.domElement.clientWidth / 2;
+    const centerY = renderer.domElement.clientHeight / 2;
+
+    const v_prev = new THREE.Vector2(prevX - centerX, prevY - centerY);
+    const v_curr = new THREE.Vector2(e.clientX - centerX, e.clientY - centerY);
+
+    const dist = v_curr.length();
+    const maxDist = ScreenRadius(); // soglia come prima
+
+    if(dist <= maxDist){
+        // rotazioni standard X/Y
+        const dx = e.clientX - prevX;
+        const dy = e.clientY - prevY;
+        const qx = new THREE.Quaternion().setFromAxisAngle(axisX, dy * 0.01);
+        const qy = new THREE.Quaternion().setFromAxisAngle(axisY, dx * 0.01);
+        polyhedronGroup.quaternion.premultiply(qy);
+        polyhedronGroup.quaternion.premultiply(qx);
+    } else {
+        // rotazione Z basata sull'angolo al centro
+        const angle_prev = Math.atan2(v_prev.y, v_prev.x);
+        const angle_curr = Math.atan2(v_curr.y, v_curr.x);
+        const dangle = angle_prev-angle_curr;
+	console.log("dangle (rad):", dangle, "≈ deg:", dangle * 180 / Math.PI);
+        const qz = new THREE.Quaternion().setFromAxisAngle(axisZ, dangle);
+        polyhedronGroup.quaternion.premultiply(qz);
+    }
+
+    prevX = e.clientX;
+    prevY = e.clientY;
+}
+
+function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene,camera);
+}
+
+window.onerror = function(message, source, lineno, colno, error) {
+  const errBox = document.createElement("div");
+  errBox.style.position = "fixed";
+  errBox.style.bottom = "0";
+  errBox.style.left = "0";
+  errBox.style.width = "100%";
+  errBox.style.background = "rgba(0,0,0,0.8)";
+  errBox.style.color = "white";
+  errBox.style.fontSize = "14px";
+  errBox.style.padding = "5px";
+  errBox.style.zIndex = "9999";
+  errBox.textContent = `${message} (riga ${lineno})`;
+  document.body.appendChild(errBox);
+};
+
+</script>
+</body>
+</html> 

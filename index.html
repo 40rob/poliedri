@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+/* =========================
+   CONFIGURAZIONE COLORI
+   ========================= */
+:root {
+  --nav-bg: #777;       /* colore barra menu principale */
+  --nav-text: white;    /* colore testi menu principale */
+  --dropdown-bg: #666;  /* colore sfondo sottomenù */
+  --dropdown-text: white; /* colore link sottomenù */
+  --dropdown-hover: #555; /* colore hover link */
+  --nav-border: 2px solid #fff; /* bordo della barra menu */
+}
+
+/* =========================
+   STILI BASE
+   ========================= */
+body {
+  margin: 0;
+  font-family: sans-serif;
+}
+
+nav {
+  background: var(--nav-bg);
+  color: var(--nav-text);
+  border: var(--nav-border);
+  padding: 0.8rem 1rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.menu {
+  position: relative;
+  margin-right: 1rem;
+}
+
+.menu > label {
+  cursor: pointer;
+  display: block;
+  font-size: 1rem;
+  padding: 0.5rem 0.8rem;
+  color: var(--nav-text);
+}
+
+.menu input {
+  display: none;
+}
+
+.dropdown {
+  display: none;
+  position: absolute;
+  background: var(--dropdown-bg);
+  top: 100%;
+  left: 0;
+  min-width: 10rem;
+  border-radius: 0.2rem;
+  overflow: hidden;
+  z-index: 20;
+}
+
+.dropdown a {
+  display: block;
+  color: var(--dropdown-text);
+  padding: 0.6rem 1rem;
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+.dropdown a:hover {
+  background: var(--dropdown-hover);
+}
+
+/* mostra dropdown se checkbox attiva */
+.menu input:checked + label + .dropdown {
+  display: block;
+}
+
+iframe {
+  position: absolute;
+  top: 3.5rem;
+  left: 0;
+  width: 100vw;
+  height: calc(100vh - 3.5rem);
+  border: none;
+  z-index: 1;
+}
+
+/* =========================
+   RESPONSIVE
+   ========================= */
+@media (max-width: 600px) {
+  nav {
+    flex-direction: row; /* resta orizzontale */
+    flex-wrap: wrap;     /* va a capo solo se strettissimo */
+  }
+
+  .menu {
+    width: auto;         /* niente 100% */
+    margin-bottom: 0;
+  }
+}
+
+html, body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+iframe {
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+</style>
+</head>
+<body>
+<nav>
+  <div class="menu">
+    <input type="checkbox" id="m1">
+    <label for="m1">Solidi Platonici</label>
+    <div class="dropdown">
+      <a href="Tetraedro.html" target="contenuto">Tetraedro</a>
+      <a href="Cubo.html" target="contenuto">Cubo</a>
+      <a href="Ottaedro.html" target="contenuto">Ottaedro</a>
+      <a href="Dodecaedro.html" target="contenuto">Dodecaedro</a>
+      <a href="Icosaedro.html" target="contenuto">Icosaedro</a>
+    </div>
+  </div>
+
+  <div class="menu">
+    <input type="checkbox" id="m2">
+    <label for="m2">Solidi Archimedei</label>
+    <div class="dropdown">
+      <a href="Tetraedro Troncato.html" target="contenuto">Tetraedro Troncato</a>
+      <a href="Cubo Troncato.html" target="contenuto">Cubo Troncato</a>
+      <a href="Ottaedro Troncato.html" target="contenuto">Ottaedro Troncato</a>
+      <a href="Dodecaedro Troncato.html" target="contenuto">Dodecaedro Troncato</a>
+      <a href="Icosaedro Troncato.html" target="contenuto">Icosaedro Troncato</a>
+      <a href="CubOttaedro.html" target="contenuto">CubOttaedro</a>
+      <a href="IcosiDodecaedro.html" target="contenuto">IcosiDodecaedro</a>
+      <a href="CubOttaedro Troncato.html" target="contenuto">Cubottaedro Troncato</a>
+      <a href="IcosiDodecaedro Troncato.html" target="contenuto">IcosiDodecaedro Troncato</a>
+      <a href="RombiCubOttaedro.html" target="contenuto">RombiCubottaedro</a>
+      <a href="RombIcosiDodecaedro.html" target="contenuto">RombIcosiDodecaedro</a>
+      <a href="Cubo Simo.html" target="contenuto">Cubo Simo</a>
+      <a href="Dodecaedro Simo.html" target="contenuto">Dodecaedro Simo</a>
+    </div>
+  </div>
+</nav>
+
+<iframe name="contenuto" src="Tetraedro.html"></iframe>
+
+<script>
+// chiude tutti gli altri pannelli quando se ne apre uno
+document.querySelectorAll('.menu > label').forEach(label => {
+  label.addEventListener('click', () => {
+    const currentCheckbox = document.getElementById(label.htmlFor);
+    document.querySelectorAll('.menu input').forEach(cb => {
+      if (cb !== currentCheckbox) cb.checked = false;
+    });
+  });
+});
+
+// chiude il pannello quando clicchi su un link del dropdown
+document.querySelectorAll('.dropdown a').forEach(link => {
+  link.addEventListener('click', () => {
+    const parentCheckbox = link.closest('.menu').querySelector('input');
+    parentCheckbox.checked = false; // chiude il dropdown
+  });
+});
+</script>
+</body>
+</html>
